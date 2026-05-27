@@ -1,38 +1,46 @@
-import os
-from dotenv import load_dotenv
-from fastapi import FastAPI
-from sqlalchemy import create_engine, Column, Integer, String
-from sqlalchemy.orm import declarative_base, sessionmaker
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
+import crud, models, schemas
+from database import engine, get_db
 
-# 1. CARREGA O SEU .ENV E CONECTA NO SUPABASE
-load_dotenv()
-DATABASE_URL = os.environ.get("DATABASE_URL")
+# cria as tabelas no banco caso nao existam
+models.Base.metadata.create_all(bind=engine)
 
-# O SQLAlchemy é o motor que vai fazer as consultas SQL para você
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+app = FastAPI()
 
-# 2. MAPEIA A SUA TABELA DO BANCO DE DADOS
-# Isso avisa ao Python como a sua tabela 'equipe' é lá no Supabase
-class Equipe(Base):
-    __tablename__ = "equipe"
-    
-    cod_equipe = Column(Integer, primary_key=True)
-    atuacao = Column(String)
+# criacao (POST)
+@app.post("/equipes/", response_model=schemas.Equipe)
+def criar_equipe(equipe: schemas.EquipeCreate, db: Session = Depends(get_db)):
+    db_equipe = crud.obter_equipe(db, cod_equipe=equipe.cod_equipe)
+    if db_equipe:
+        raise HTTPException(status_code=400, detail="Equipe com este codigo ja existe")
+    return crud.criar_equipe(db=db, equipe=equipe)
 
-# 3. CRIA A API FASTAPI
-app = FastAPI(title="Minha API do Festival")
+# leitura de todas (GET)
+@app.get("/equipes/", response_model=list[schemas.Equipe])
+def listar_equipes(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return crud.listar_equipes(db, skip=skip, limit=limit)
 
-# 4. ROTA QUE FAZ A CONSULTA (O SEU SELECT)
-@app.get("/equipes")
-def listar_equipes():
-    # Abre a conexão com o banco
-    db = SessionLocal()
-    try:
-        # Faz a consulta: SELECT * FROM equipe;
-        equipes = db.query(Equipe).all()
-        return {"dados": equipes}
-    finally:
-        # Fecha a conexão
-        db.close()
+# leitura de uma especifica (GET)
+@app.get("/equipes/{cod_equipe}", response_model=schemas.Equipe)
+def obter_equipe(cod_equipe: int, db: Session = Depends(get_db)):
+    db_equipe = crud.obter_equipe(db, cod_equipe=cod_equipe)
+    if db_equipe is None:
+        raise HTTPException(status_code=404, detail="Equipe nao encontrada")
+    return db_equipe
+
+# atualizacao (PUT)
+@app.put("/equipes/{cod_equipe}", response_model=schemas.Equipe)
+def atualizar_equipe(cod_equipe: int, equipe: schemas.EquipeUpdate, db: Session = Depends(get_db)):
+    db_equipe = crud.atualizar_equipe(db, cod_equipe, equipe)
+    if db_equipe is None:
+        raise HTTPException(status_code=404, detail="Equipe nao encontrada")
+    return db_equipe
+
+# exclusao (DELETE)
+@app.delete("/equipes/{cod_equipe}")
+def deletar_equipe(cod_equipe: int, db: Session = Depends(get_db)):
+    db_equipe = crud.deletar_equipe(db, cod_equipe)
+    if db_equipe is None:
+        raise HTTPException(status_code=404, detail="Equipe nao encontrada")
+    return {"mensagem": "Equipe deletada com sucesso"}
