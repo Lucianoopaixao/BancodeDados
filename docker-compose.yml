@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: YTDZW6c9VYMHbII
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres.jskurxrvkgsujwcomrdv:lYTDZW6c9VYMHbII@aws-1-us-east-1.pooler.supabase.com:5432/postgres
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
